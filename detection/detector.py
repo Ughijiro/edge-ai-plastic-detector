@@ -65,7 +65,7 @@ def detect_objects(frame):
 from ultralytics import YOLO
 
 # Modelul tău fine-tuned (ultimul antrenat)
-model = YOLO('runs/detect/plastic_detector_finetuned-4/weights/best.pt')
+model = YOLO('runs/detect/plastic_detector_finetuned-4/weights/yolov8n.pt')
 
 WASTE_CLASSES = ["bottle", "plastic", "can", "carton", "paper"]
 
