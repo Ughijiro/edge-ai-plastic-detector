@@ -1,5 +1,6 @@
 runs/
 test_videos/
+models/
 Floating Waste.v1.yolov8/
 floating_waste/
 datasets/
