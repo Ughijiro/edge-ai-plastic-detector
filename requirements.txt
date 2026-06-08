@@ -2,3 +2,7 @@ opencv-python
 ultralytics
 torch
 torchvision
+streamlit
+pandas
+boto3
+awsiotsdk

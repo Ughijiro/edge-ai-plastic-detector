@@ -6,6 +6,8 @@ from detection.detector import detect_objects
 from decision.decision_logic import decide_action
 from communication.client import send_command
 
+from cloud.aws_publisher import publish_event
+
 
 DEVICE_ID = "plastic-detector-01"
 SOURCE = "laptop-ai"
@@ -38,10 +40,10 @@ def build_event(decision):
     }
 
     if selected is not None:
-        event["label"] = selected.get("label")
-        event["confidence"] = selected.get("confidence")
-        event["area_ratio"] = selected.get("area_ratio")
-        event["track_id"] = selected.get("track_id")
+        event["selected_label"] = selected.get("label")
+        event["selected_confidence"] = selected.get("confidence")
+        event["selected_area_ratio"] = selected.get("area_ratio")
+        event["selected_track_id"] = selected.get("track_id")
 
     return event
 
@@ -109,6 +111,7 @@ while True:
 
             print("[EVENT]", event)
             send_command(event)
+            publish_event(event)
 
     if last_event is not None:
         cv2.putText(
