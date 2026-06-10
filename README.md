@@ -1,6 +1,6 @@
 # Edge AI Plastic Waste Detector
 
-A real-time computer-vision system that detects floating plastic waste, decides what to do, drives actuators on a Raspberry Pi (servo / LED / buzzer), and logs every event for a live dashboard. The YOLOv8 model runs on a laptop (the "brain"); the Raspberry Pi performs the physical action (the "hands").
+A real-time computer-vision system that detects floating plastic waste, decides what to do, drives actuators on a Raspberry Pi (servo / LED / buzzer), and logs every event to AWS for a live dashboard. The YOLOv8 model runs on a laptop (the "brain"); the Raspberry Pi performs the physical action (the "hands").
 
 ## What It Does
 
@@ -14,18 +14,53 @@ Non-waste objects (e.g. `natural-debris`) are recognized only so they can be ign
 
 ## Pipeline
 
+**Step 1 — See:** the camera captures frames of the water.
+
+**Step 2 — Detect:** `detection/` runs YOLOv8 on each frame, classifying every object as waste or not and measuring its size.
+
+**Step 3 — Decide:** `decision/` looks at the waste and picks ONE action for the frame:
+
 ```
-Camera → detection/ (YOLOv8: classify + size) → decision/ (COLLECT/ALARM/STOP)
-                                                         │
-                ┌────────────────────────────────────────┴───────────────┐
-                ▼                                                          ▼
-   communication/client.py ──TCP──> Raspberry Pi server.py        live_camera.py → dashboard/
-        (sends JSON command)        (servo / LED / buzzer)        (logs events, charts them)
+   COLLECT  →  small, manageable waste
+   ALARM    →  waste too large, or too many objects
+   STOP     →  no waste
 ```
+
+**Step 4 — Act:** the action is sent down one (or both) of these paths:
+
+```
+                        ┌─────────────────────────────┐
+                        │   Step 3: decide the action  │
+                        │   COLLECT / ALARM / STOP      │
+                        └───────────────┬──────────────┘
+                                        │
+                ┌───────────────────────┴───────────────────────┐
+                │                                                 │
+                ▼                                                 ▼
+     ━━━ HARDWARE PATH ━━━                            ━━━ DASHBOARD PATH ━━━
+     (act in the real world)                          (record & visualize)
+
+   communication/client.py                            live_camera.py
+   sends the action by Wi-Fi                           saves the event
+            │                                                 │
+            ▼                                          ┌───────┴────────┐
+   Raspberry Pi: server.py                             ▼                ▼
+            │                                    local .jsonl      AWS IoT
+            ▼                                    file               │
+   COLLECT → servo moves                              │             ▼
+   ALARM  → LED + buzzer                               │          DynamoDB
+                                                       │             │
+                                                       └──────┬──────┘
+                                                              ▼
+                                                    dashboard/ (Streamlit)
+                                                    charts, KPIs, event log
+```
+
+In short: the laptop is the **brain** (Steps 1–3). The **hardware path** lets the Raspberry Pi physically react, and the **dashboard path** records every event so you can see what happened.
 
 Two runnable paths share the same detection + decision core:
 1. **Hardware path** — `main.py` → `communication/client.py` → Pi `communication/server.py` drives the servo / LED / buzzer.
-2. **Dashboard path** — `live_camera.py` logs events to a `.jsonl` file (or AWS), and the Streamlit `dashboard/` visualizes them.
+2. **Dashboard path** — `live_camera.py` logs events to a local `.jsonl` file and/or publishes to AWS IoT; the Streamlit `dashboard/` visualizes them (from Demo, the local file, or DynamoDB).
 
 ## Components
 
@@ -37,6 +72,8 @@ Two runnable paths share the same detection + decision core:
 | `decision/decision_logic.py` | Picks one action per frame (largest object, object count). |
 | `communication/client.py` | Laptop → Pi over TCP, sends JSON. |
 | `communication/server.py` | Pi side: maps `COLLECT`/`ALARM`/`STOP` to servo / LED / buzzer. |
+| `cloud/aws_publisher.py` | Publishes events to AWS IoT Core over MQTT (topic `plastic-detector/events`). |
+| `cloud/dynamodb_reader.py` | Reads stored events back from the DynamoDB table `PlasticDetectorEvents`. |
 | `main.py` | Entry point for the hardware path. |
 | `live_camera.py` | Entry point for the dashboard path (status panel, event logging). |
 | `dashboard/` | Streamlit app + data layer (KPIs, charts, event log, CSV export). |
@@ -62,7 +99,8 @@ Two runnable paths share the same detection + decision core:
 
 ```bash
 pip install -r requirements.txt    # opencv-python, ultralytics, torch, torchvision
-# + sahi (SAHI mode), streamlit / plotly / pandas (dashboard)
+# extras: sahi (SAHI mode); streamlit / plotly / pandas (dashboard);
+#         awsiotsdk + boto3 (AWS publishing + DynamoDB)
 ```
 
 1. Put trained weights at `models/best.pt` (git-ignored — train with `train.py` or add your own).
@@ -80,8 +118,10 @@ python live_camera.py             # produce live events
 streamlit run dashboard/App_.py   # view them (pick "Live (local)", or "Demo" for sample data)
 ```
 
+## Cloud (AWS)
+
+The cloud layer uses **AWS IoT Core** (MQTT) for ingest and **DynamoDB** (`PlasticDetectorEvents`, region `eu-north-1`) for storage. To enable it: set `PUBLISH_TO_AWS = True` in `live_camera.py`, and in `cloud/aws_publisher.py` update the certificate paths (`CERT_PATH`, `PRIVATE_KEY_PATH`, `ROOT_CA_PATH`) to your own AWS IoT credentials — the current paths are hardcoded to one machine. Without this, the local `.jsonl` log and the Demo source work fine.
+
 ## Notes
 
-- The cloud layer (AWS IoT + DynamoDB, referenced in `cloud/`) is not committed, so AWS publishing is off by default — the local `.jsonl` log and Demo source work without it.
-- Dashboard UI text is currently in Romanian.
 - This is a proof-of-concept combining computer vision, embedded systems, real-time detection, and cloud logging.
