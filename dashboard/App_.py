@@ -171,7 +171,7 @@ def sparkline(values, color):
 with st.sidebar:
     st.markdown("**SETARI**")
     dark = st.toggle("Mod intunecat", value=False)
-    source = st.radio("Sursa de date", ["Demo", "Live (local)", "AWS DynamoDB"], index=0)
+    source = st.radio("Sursa de date", ["Demo", "Live (local)", "AWS DynamoDB"], index=2)
     period_label = st.selectbox("Perioada", list(PERIODS.keys()), index=1)
     end_day = st.date_input("Pana in ziua", value=dt.date.today())
     st.caption("Variatiile (+/- %) sunt fata de perioada anterioara, egala.")

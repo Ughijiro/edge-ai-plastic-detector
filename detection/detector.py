@@ -6,7 +6,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = PROJECT_ROOT / "models" / "best.pt"
 
 CONF_THRESHOLD = 0.45
-LARGE_WASTE_THRESHOLD = 0.35
+LARGE_WASTE_THRESHOLD = 0.15
 
 WASTE_CLASSES = {
     "plastic-bottle",
