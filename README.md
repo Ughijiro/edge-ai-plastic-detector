@@ -94,5 +94,4 @@ The cloud layer uses **AWS IoT Core** (MQTT) for ingest and **DynamoDB** (`Plast
 
 ## Notes
 
-- Dashboard UI text is currently in Romanian.
 - This is a proof-of-concept combining computer vision, embedded systems, real-time detection, and cloud logging.
