@@ -1,15 +1,46 @@
-# VERSIUNE SOFTWARE ONLY - fara hardware
+LARGE_THRESHOLD = 0.35
+TOO_MANY_OBJECTS_THRESHOLD = 15
 
-LARGE_THRESHOLD = 0.15
 
-def decide_action(detection):
-    label = detection["label"]
-    area_ratio = detection.get("area_ratio", 0.0)
+def decide_action(detections):
+    detections_count = len(detections)
 
-    if area_ratio > LARGE_THRESHOLD:
-        print(f"⚠️  WARNING: Gunoi MARE detectat ({label}) - size {area_ratio:.1%} - nu poate fi colectat!")
-        return "WARNING"
-    else:
-        print(f"✅ COLLECT: Gunoi mic detectat ({label}) - size {area_ratio:.1%} - colector se activează")
-        print("   (astept 2 secunde ca sa se deschida mecanismul...)")
-        return "COLLECT"
+    if detections_count == 0:
+        return {
+            "action": "STOP",
+            "reason": "no_garbage_detected",
+            "selected_detection": None,
+            "detections_count": 0
+        }
+
+    # Selectăm cea mai mare detecție din frame
+    selected_detection = max(
+        detections,
+        key=lambda detection: detection.get("area_ratio", 0)
+    )
+
+    # Dacă sunt prea multe obiecte detectate, ridicăm alarmă
+    if detections_count >= TOO_MANY_OBJECTS_THRESHOLD:
+        return {
+            "action": "ALARM",
+            "reason": "too_many_objects_detected",
+            "selected_detection": selected_detection,
+            "detections_count": detections_count
+        }
+
+    # Dacă obiectul selectat ocupă prea mult din imagine, ridicăm alarmă
+    if selected_detection.get("area_ratio", 0) >= LARGE_THRESHOLD:
+        return {
+            "action": "ALARM",
+            "reason": "object_too_large",
+            "selected_detection": selected_detection,
+            "detections_count": detections_count
+        }
+
+    # Altfel, obiectul este considerat colectabil
+    return {
+        "action": "COLLECT",
+        "reason": "collectable_garbage_detected",
+        "selected_detection": selected_detection,
+        "detections_count": detections_count
+    }
