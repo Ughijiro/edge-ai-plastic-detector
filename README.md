@@ -14,19 +14,49 @@ Non-waste objects (e.g. `natural-debris`) are recognized only so they can be ign
 
 ## Pipeline
 
+**Step 1 — See:** the camera captures frames of the water.
+
+**Step 2 — Detect:** `detection/` runs YOLOv8 on each frame, classifying every object as waste or not and measuring its size.
+
+**Step 3 — Decide:** `decision/` looks at the waste and picks ONE action for the frame:
+
 ```
-Camera → detection/ (YOLOv8: classify + size) → decision/ (COLLECT/ALARM/STOP)
-                                                         │
-                ┌────────────────────────────────────────┴───────────────┐
-                ▼                                                          ▼
-   communication/client.py ──TCP──> Pi server.py            live_camera.py
-        (sends JSON command)        (servo / LED / buzzer)   (logs events locally
-                                                              + publishes to AWS IoT)
-                                                                       │
-                                                          AWS IoT → DynamoDB
-                                                                       │
-                                                              dashboard/ (Streamlit)
+   COLLECT  →  small, manageable waste
+   ALARM    →  waste too large, or too many objects
+   STOP     →  no waste
 ```
+
+**Step 4 — Act:** the action is sent down one (or both) of these paths:
+
+```
+                        ┌─────────────────────────────┐
+                        │   Step 3: decide the action  │
+                        │   COLLECT / ALARM / STOP      │
+                        └───────────────┬──────────────┘
+                                        │
+                ┌───────────────────────┴───────────────────────┐
+                │                                                 │
+                ▼                                                 ▼
+     ━━━ HARDWARE PATH ━━━                            ━━━ DASHBOARD PATH ━━━
+     (act in the real world)                          (record & visualize)
+
+   communication/client.py                            live_camera.py
+   sends the action by Wi-Fi                           saves the event
+            │                                                 │
+            ▼                                          ┌───────┴────────┐
+   Raspberry Pi: server.py                             ▼                ▼
+            │                                    local .jsonl      AWS IoT
+            ▼                                    file               │
+   COLLECT → servo moves                              │             ▼
+   ALARM  → LED + buzzer                               │          DynamoDB
+                                                       │             │
+                                                       └──────┬──────┘
+                                                              ▼
+                                                    dashboard/ (Streamlit)
+                                                    charts, KPIs, event log
+```
+
+In short: the laptop is the **brain** (Steps 1–3). The **hardware path** lets the Raspberry Pi physically react, and the **dashboard path** records every event so you can see what happened.
 
 Two runnable paths share the same detection + decision core:
 1. **Hardware path** — `main.py` → `communication/client.py` → Pi `communication/server.py` drives the servo / LED / buzzer.
